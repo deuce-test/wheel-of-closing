@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jacky's Wheel of Closing</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: #f5f5f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-top: 20px;
+        }
+        .card {
+            padding: 20px;
+            width: 350px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .entry {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .entry input {
+            margin: 0 !important;
+        }
+        canvas {
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        #result {
+            margin-top: 20px;
+            font-size: 1.5em;
+            font-weight: 500;
+            color: #1976d2;
+        }
+        #sum {
+            font-size: 1.1em;
+            margin: 10px 0;
+            color: #555;
+        }
+        .btn {
+            margin: 5px;
+            border-radius: 4px;
+        }
+        .btn-small {
+            height: 32px;
+            line-height: 32px;
+            padding: 0 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1 class="blue-text text-darken-2">Jacky's Wheel of Closing</h1>
+    <div class="container">
+        <div class="card">
+            <div id="entries"></div>
+            <div id="sum">Total Probability: 0%</div>
+            <button class="btn blue" onclick="addEntry()">Add Entry</button>
+            <button class="btn blue darken-2" id="spin" onclick="spinWheel()" disabled>Spin Wheel</button>
+        </div>
+        <canvas id="wheel" width="400" height="400"></canvas>
+    </div>
+    <div id="result"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+    <script>
+        const canvas = document.getElementById('wheel');
+        const ctx = canvas.getContext('2d');
+        const entries = [];
+        let spinning = false;
+        let currentAngle = 0;
+
+        function addEntry(name = '', probability = '') {
+            const entryDiv = document.createElement('div');
+            entryDiv.className = 'entry';
+            entryDiv.innerHTML = `
+                <input type="text" class="name browser-default" value="${name}" placeholder="Name">
+                <input type="number" class="probability browser-default" value="${probability}" placeholder="%" min="0" max="100">
+                <a class="btn-small red" onclick="removeEntry(this)">X</a>
+            `;
+            document.getElementById('entries').appendChild(entryDiv);
+            updateWheel();
+        }
+
+        function removeEntry(button) {
+            button.parentElement.remove();
+            updateWheel();
+        }
+
+        function updateWheel() {
+            entries.length = 0;
+            let total = 0;
+            document.querySelectorAll('.entry').forEach(entry => {
+                const name = entry.querySelector('.name').value;
+                const prob = parseFloat(entry.querySelector('.probability').value) || 0;
+                if (name && prob > 0) {
+                    entries.push({ name, probability: prob });
+                    total += prob;
+                }
+            });
+            document.getElementById('sum').textContent = `Total Probability: ${total}%`;
+            document.getElementById('spin').disabled = total !== 100 || spinning;
+            drawWheel();
+        }
+
+        function drawWheel(angle = 0) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = Math.min(centerX, centerY) - 20;
+            let startAngle = angle;
+
+            if (entries.length === 0) {
+                // Draw an empty white circle if no entries
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+                ctx.fillStyle = 'white';
+                ctx.fill();
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                return;
+            }
+
+            entries.forEach((entry, i) => {
+                const angleSize = (entry.probability / 100) * 2 * Math.PI;
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.arc(centerX, centerY, radius, startAngle, startAngle + angleSize);
+                ctx.fillStyle = `hsl(${i * 360 / entries.length}, 70%, 50%)`;
+                ctx.fill();
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.save();
+                ctx.translate(centerX, centerY);
+                ctx.rotate(startAngle + angleSize / 2);
+                ctx.textAlign = 'center';
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 16px Roboto';
+                ctx.fillText(entry.name, radius / 2, 5);
+                ctx.restore();
+
+                startAngle += angleSize;
+            });
+        }
+
+        function spinWheel() {
+            if (spinning || entries.length === 0) return;
+            spinning = true;
+            document.getElementById('spin').disabled = true;
+            document.getElementById('result').textContent = '';
+            const spinTime = 3000 + Math.random() * 2000;
+            const startTime = Date.now();
+
+            // Choose a winner based on probability
+            const random = Math.random() * 100;
+            let cumulative = 0;
+            let winnerIndex = 0;
+            let winnerName = '';
+            for (let i = 0; i < entries.length; i++) {
+                cumulative += entries[i].probability;
+                if (random <= cumulative) {
+                    winnerIndex = i;
+                    winnerName = entries[i].name;
+                    break;
+                }
+            }
+
+            // Calculate the target angle for the winner's midpoint at the top (0 radians)
+            let totalAngleSoFar = 0;
+            for (let i = 0; i < winnerIndex; i++) {
+                totalAngleSoFar += (entries[i].probability / 100) * 2 * Math.PI;
+            }
+            const winnerAngleSize = (entries[winnerIndex].probability / 100) * 2 * Math.PI;
+            const winnerMidpoint = totalAngleSoFar + (winnerAngleSize / 2);
+            // Adjust so winner's midpoint aligns with the top (0 radians)
+            const targetAngle = (2 * Math.PI - winnerMidpoint) % (2 * Math.PI);
+            const extraSpins = Math.floor(Math.random() * 5 + 5); // 5-9 full spins
+            const totalSpinAngle = targetAngle + extraSpins * 2 * Math.PI;
+
+            function animate() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / spinTime, 1);
+                const easeOut = 1 - Math.pow(1 - progress, 4);
+                currentAngle = totalSpinAngle * easeOut;
+                drawWheel(currentAngle);
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    spinning = false;
+                    currentAngle = targetAngle; // Set exact final angle
+                    drawWheel(currentAngle);
+                    document.getElementById('result').textContent = `Winner: ${winnerName}`;
+                    document.getElementById('spin').disabled = false;
+                }
+            }
+            requestAnimationFrame(animate);
+        }
+
+        document.addEventListener('input', e => {
+            if (e.target.classList.contains('name') || e.target.classList.contains('probability')) {
+                updateWheel();
+            }
+        });
+
+        // Ensure at least one entry field is present on load
+        addEntry();
+    </script>
+</body>
+</html>
